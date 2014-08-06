@@ -1,7 +1,7 @@
 -- X86 Register reference
 ASM.REGS = {}
 ASM.REGS["REG8"] = 	{ "AL", "CL", "DL", "BL", "AH", "CH", "DH", "BH"}
-ASM.REGS["REG16"] = { "AX", "CX", "DX", "BX", "SP", "BP", "SI", "DI"}
+ASM.REGS["REG16"] = { "AX", "CX", "DX", "BX", "SP", "BP", "SI", "DI", "BX"}
 ASM.REGS["REG32"] = {"EAX","ECX","EDX","EBX","ESP","EBP","ESI","EDI"}
 ASM.REGS["REG64"] = {"RAX","RCX","RDX","RBX","RSP","RBP","RSI","RDI"}
 --ASM.REGS["SREG2"] =	{ "ES", "CS", "SS", "DS",   "",   "",   "",   ""}
