@@ -7,7 +7,92 @@
 --	that require labels
 
 -- Table of ModR/M encodings
--- REG1, REG2, DISPSZ
+-- { Encoding:string, Mod:number, RM:number}
+-- 16-bit addressing
+ASM.ModRM16 = {
+	["BX SI"] = {0,0},
+	["BX DI"] = {0,1},
+	["BP SI"] = {0,2},
+	["BP DI"] = {0,3},
+	["SI"] = {0,4},
+	["DI"] = {0,5},
+	["D16"] = {0,6},
+	["BX"] = {0,7},
+	
+	["BX SI D8"] = {1,0},
+	["BX DI D8"] = {1,1},
+	["BP SI D8"] = {1,2},
+	["BP DI D8"] = {1,3},
+	["SI D8"] = {1,4},
+	["DI D8"] = {1,5},
+	["BP D8"] = {1,6},
+	["BX D8"] = {1,7},
+	
+	["BX SI D16"] = {2,0},
+	["BX DI D16"] = {2,1},
+	["BP SI D16"] = {2,2},
+	["BP DI D16"] = {2,3},
+	["SI D16"] = {2,4},
+	["DI D16"] = {2,5},
+	["BP D16"] = {2,6},
+	["BX D16"] = {2,7} }
+	
+-- 32/64-bit addressing
+ASM.ModRM32 = {
+	["AX"] = {0,0},
+	["CX"] = {0,1},
+	["DX"] = {0,2},
+	["BX"] = {0,3},
+	["SIB"] = {0,4},
+	["EIP D32"] = {0,5},
+	["RIP D32"] = {0,5},
+	["SI"] = {0,6},
+	["DI"] = {0,7},
+	
+	["AX D8"] = {1,0},
+	["CX D8"] = {1,1},
+	["DX D8"] = {1,2},
+	["BX D8"] = {1,3},
+	["SIB D8"] = {1,4},
+	["BP D8"] = {1,5},
+	["SI D8"] = {1,6},
+	["DI D8"] = {1,7},
+	
+	["AX D32"] = {2,0},
+	["CX D32"] = {2,1},
+	["DX D32"] = {2,2},
+	["BX D32"] = {2,3},
+	["SIB D32"] = {2,4},
+	["BP D32"] = {2,5},
+	["SI D32"] = {2,6},
+	["DI D32"] = {2,7} }
+	
+-- Returns mod and r/m for a certain encodings
+function ASM:GetModRM(base,index,dispSz,addrSz)
+	local str = ""
+	
+	if base ~= nil then
+		str = str .. base:upper()
+	end
+	if index ~= nil then
+		if base ~= nil then
+			str = str .. " "
+		end
+		str = str .. index:upper()
+	end
+	if dispSz ~= nil then
+		if base ~= nil or index ~= nil then
+			str = str .. " "
+		end
+		str = str .. "D" .. tostring(dispSz)
+	end
+	
+	if addrSz == 16 then
+		return self.ModRM16[str]
+	else
+		return self.ModRM32[str]
+	end
+end
 
 function SplitString(str,delim)
 	local ret = {}
@@ -125,9 +210,20 @@ function ASM:ProcessEA(toks, rfield)
 	-- First evaluate the effective address
 	-- We do this here instead of the parser
 	-- in case it has a label
-	local pos = toks[1].Pos
-	local ea = self:EvalEA(toks)
-	printTable(ea)
+	local pos, ea, reg
+	if toks[1] ~= nil then
+		-- It's a table, assume its an EA
+		pos = toks[1].Pos
+		ea = self:EvalEA(toks)
+		printTable(ea)
+	elseif toks.Type ~= nil then
+		-- It's a single token, assume 
+		pos = toks.Pos
+		reg = toks.Data
+	else
+		-- Hmm shouldn't be here
+		error()
+	end
 	
 	if ea.Scale == 0 then
 		ea.Ind = nil
@@ -135,6 +231,21 @@ function ASM:ProcessEA(toks, rfield)
 	
 	if not ea.Base and not ea.Ind and not ea.Scale and not ea.Disp then
 		error("Error parsing ea")
+	end
+	
+	if reg ~= nil then
+		-- Register
+		local regType = self.REG_TYPE[reg]
+		local addrSz
+		if regType == "reg8" or regType == "reg16" then
+			addrSz = 16
+		elseif regType == "reg32" then
+			addrSz = 32
+		else
+			addrSz = 64
+		end
+		
+		return 1, self.EncodeModRM(3, rfield, self.REG_LOOKUP[reg]), nil, nil, nil, addrSz
 	end
 	
 	if not ea.Base and not ea.Ind and not ea.Scale then
@@ -166,6 +277,10 @@ function ASM:ProcessEA(toks, rfield)
 				-- Less than 16-bits, encode disp16
 				return 1, self.EncodeModRM(0, rfield, 6), nil, 2, ea.Disp, 16
 			end
+		end
+	else
+		if not ea.Scale then
+			-- We can assume we won't need an SIB byte in normal conditions
 		end
 	end
 	
