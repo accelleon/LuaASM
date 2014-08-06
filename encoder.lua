@@ -120,11 +120,12 @@ function ASM:EvalEA(toks)
 	return ea
 end
 
--- Returns nBytes, modrm, sib
+-- Returns nBytes, modrm, sib, dispSz, disp, addrSz
 function ASM:ProcessEA(toks, rfield)
 	-- First evaluate the effective address
 	-- We do this here instead of the parser
 	-- in case it has a label
+	local pos = toks[1].Pos
 	local ea = self:EvalEA(toks)
 	printTable(ea)
 	
@@ -138,7 +139,34 @@ function ASM:ProcessEA(toks, rfield)
 	
 	if not ea.Base and not ea.Ind and not ea.Scale then
 		-- Pure offset
+		if self.BitSize == 64 then
+			if ea.DispSz == 16 then
+				-- We cannot address 16 bit displacements
+				-- in 64-bit addressing
+				self.Error(24, pos.File,pos.Line)
+			end
+		end
 		
+		if self.BitSize == 64 then
+			-- 64-bit addressing
+			if self.AddrType == "off" then
+				-- Offset addressing, 32-bit displacement isn't available in
+				-- modr/m alone in long mode, encode ModRM: SIB and SIB: disp32
+				return 2, self.EncodeModRM(0, rfield, 4), self.EncodeModRM(0, 4, 5), 4, disp, 64
+			else
+				-- Relative addressing, encode EIP/RIP + disp
+				return 1, self.EncodeModRM(0, rfield, 5), nil, 4, ea.Disp, 64
+			end
+		else
+			-- 32/16 bit addressing
+			if ea.DispSz == 32 or ea.Disp > 65535 then
+				-- If more than 16-bits, encode disp32
+				return 1, self.EncodeModRM(0, rfield, 5), nil, 4, ea.Disp, 32
+			else
+				-- Less than 16-bits, encode disp16
+				return 1, self.EncodeModRM(0, rfield, 6), nil, 2, ea.Disp, 16
+			end
+		end
 	end
 	
 	return 0
