@@ -2,7 +2,7 @@
 ASM = {}
 
 function include(fname)
-	proc, err = loadfile(fname)
+	proc, err = loadfile("LuaASM/"..fname)
 	if proc == nil then
 		print(err)
 		error()
@@ -26,6 +26,7 @@ function ASM:Init()
 	ASM.FileList = {}
 	ASM.BitSize = 16
 	ASM.AddrSize = 16
+	ASM.AddrType = "off"
 	ASM.SourceFiles = {}
 	ASM.Source = {}
 	ASM.IncludeSearchPath = {}
