@@ -400,7 +400,9 @@ function ASM:ParseInstx(prefix)
 			-- Put together type information
 			local tReg = {}
 			tReg.Type = o.Data
-			tReg.Data = self.REG_LOOKUP[o.Data]
+			--tReg.Data = self.REG_LOOKUP[o.Data]
+			tReg.Data = o.Data
+			-- We want to keep register names for encoding
 			
 			-- Change regX's data to contain index
 			--o.Data = tReg.Data
