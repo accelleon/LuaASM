@@ -72,7 +72,7 @@ ASM.ModRM32 = {
 -- with the same index to the 16-bit name
 ASM.INDREG = {
 	["EAX"] = "AX", ["EBX"] = "BX", ["ECX"] = "CX", ["EDX"] = "DX",
-	["EBP"] = "BP", ["ESI"] = "SI", ["EDI"] = "DI", ["ESP"] = "SP"
+	["EBP"] = "BP", ["ESI"] = "SI", ["EDI"] = "DI", ["ESP"] = "SP",
 	["AL"] = "AX", ["BL"] = "BX", ["CL"] = "CX", ["DL"] = "DX",
 	["AH"] = "SP", ["BH"] = "DI", ["CH"] = "BP", ["DH"] = "SI" }
 	
@@ -153,6 +153,7 @@ function ASM:EncodeModRM(mod,reg,rm)
 end
 
 function ASM:EncodeSIB(scale,index,base)
+	print(scale)
 	scale = bit32.band(bit32.lshift(scale,6),0xC0)
 	index = bit32.band(bit32.lshift(index,3),0x38)
 	base = bit32.band(base,0x07)
@@ -174,7 +175,7 @@ function ASM:EvalEA(toks)
 	local ea = {}
 	
 	self.Tokens = toks
-	self.CurToken = 1
+	self.CurTok = 1
 	
 	if self:MatchToken(self.TOKEN.SIZE) then
 		ea.DispSz = self.TokenData
@@ -191,7 +192,11 @@ function ASM:EvalEA(toks)
 		ev, hint = self:Eval()
 	end
 	
+	print("Evaluator")
+	printTable(ev)
+	
 	for _,e in pairs(ev) do
+		if e.Data then print("EA Reg Data: " .. e.Data) end
 		-- Is it a register?
 		if e.Type == 0 then
 			break
@@ -205,16 +210,16 @@ function ASM:EvalEA(toks)
 					if ea.Ind then
 						self:Error(24, pos.File, pos.Line)
 					end
-					ea.Ind = e.Type
+					ea.Ind = e.Data
 					ea.Scale = e.Val
 				end
-				ea.Base = e.Type
+				ea.Base = e.Data
 			else
 				-- Must be index
 				if ea.Ind then
 					self:Error(24, pos.File, pos.Line)
 				end
-				ea.Ind = e.Type
+				ea.Ind = e.Data
 				ea.Scale = e.Val
 			end
 		else
@@ -240,18 +245,25 @@ function ASM:ProcessEA(toks, rfield)
 		-- It's a table, assume its an EA
 		pos = toks[1].Pos
 		ea = self:EvalEA(toks)
-		printTable(ea)
 	elseif toks.Type ~= nil then
 		-- It's a single token, assume 
 		pos = toks.Pos
 		reg = toks.Data
+		print(reg)
 	else
 		-- Hmm shouldn't be here
 		error()
 	end
 	
+	printTable(ea)
+	
 	if ea.Scale == 0 then
-		ea.Ind = nil
+		ea.Index = nil
+	end
+	
+	if not ea.DispSz then
+		ea.DispSz = 0
+		ea.Disp = 0
 	end
 
 	if not ea.Base and not ea.Ind and not ea.Scale and not ea.Disp then
@@ -315,11 +327,12 @@ function ASM:ProcessEA(toks, rfield)
 		if not ea.Scale then
 			-- We can assume we won't need an SIB byte in normal conditions
 			local mod, rm = self.GetModRM(ea.Base, ea.Index, ea.DispSz, addrSz)
-			return 1, self.EncodeModRM(mod, rfield, rm), nil, 
+			return 1, self.EncodeModRM(mod, rfield, rm), ea.DispSz, ea.Disp
 		else
 			-- We absolutely need an SIB byte
 			local index = self.REG_LOOKUP[ea.Index]
 			local base = self.REG_LOOKUP[ea.Base]
+			print(ea.Scale)
 			local sib = self.EncodeSIB(ea.Scale, index, base)
 			
 			-- Encode the correct SIB modrm
@@ -361,12 +374,22 @@ function ASM:SizeInstx(code)
 			emitByte()
 		elseif o == "/r" then
 			-- Parse memory
-			-- For now assume 1 byte
-			emitByte()
+			local size, modrm, sib, dSize, disp
+			if OpEnc[curOp] == 'r' then
+				local reg = getOp().Data
+				size, modrm, sib, dSize, disp = self:ProcessEA(getOp().Data, reg)
+			elseif OpEnc[curOp] == 'm' then
+				size, modrm, sib, dSize, disp = self:ProcessEA(getOp().Data, getOp().Data())
+			end
+			if dSize then size = size + dSize end
+			emitByte(size)
 		elseif _rmtab[o] then
 			-- Parse memory
-			-- For now assume 1 byte
-			emitByte()
+			local rfield = string.sub(o,2,2)
+			rfield = tonumber(rfield)
+			local size, modrm, sib, dSize, disp = self:ProcessEA(getOp().Data, rfield)
+			if dSize then size = size + dSize end
+			emitByte(size)
 		elseif (o == "ib") or (o == "iw") or (o == "id") then
 			if o == "ib" then
 				emitByte()
@@ -426,7 +449,12 @@ function ASM:EncodeInstx(code)
 	end
 	
 	-- These functions assume little endian!
-	local function emitByte(b)
+	local function emitByte(b, sz)
+		if sz == 2 then
+			emitWord(b)
+		elseif sz == 4 then
+			emitDword(b)
+		end
 		table.insert(Bytecode,bit32.band(b,0xFF))
 	end
 	
@@ -471,23 +499,25 @@ function ASM:EncodeInstx(code)
 			end
 		elseif o == "/r" then
 			-- ModR/M byte in which both r/m and reg fields are used
-			local modrm, sib
+			local size, modrm, sib, dSize, disp
 			if OpEnc[curOp] == 'r' then
 				local reg = getOp().Data
-				modrm, sib = self:ProcessEA(getOp().Data, reg)
+				size, modrm, sib, dSize, disp = self:ProcessEA(getOp().Data, reg)
 			elseif OpEnc[curOp] == 'm' then
-				modrm, sib = self:ProcessEA(getOp().Data, getOp().Data())
+				size, modrm, sib, dSize, disp = self:ProcessEA(getOp().Data, getOp().Data())
 			end
 			emitByte(modrm)
 			if sib then emitByte(sib) end
+			if disp then emitByte(disp,dSize) end
 		elseif _rmtab[o] then
 			-- ModR/M byte in which only mod and r/m fields are used
 			-- and the reg field indicates an extension to the opcode
 			local rfield = string.sub(o,2,2)
 			rfield = tonumber(rfield)
-			local modrm, sib = self:ProcessEA(getOp().Data, rfield)
+			local size, modrm, sib, dSize, disp = self:ProcessEA(getOp().Data, rfield)
 			emitByte(modrm)
 			if sib then emitByte(sib) end
+			if disp then emitByte(disp,dSize) end
 		elseif (o == "ib") or (o == "iw") or (o == "id") then
 			-- Immediate operand
 			local val = self:Eval(getOp().Data)
