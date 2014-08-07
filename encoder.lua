@@ -67,7 +67,16 @@ ASM.ModRM32 = {
 	["SI D32"] = {2,6},
 	["DI D32"] = {2,7} }
 	
--- Returns mod and r/m for a certain encodings
+-- Since all registers can be represented above,
+-- only 1 name has been used. This maps registers
+-- with the same index to the 16-bit name
+ASM.INDREG = {
+	["EAX"] = "AX", ["EBX"] = "BX", ["ECX"] = "CX", ["EDX"] = "DX",
+	["EBP"] = "BP", ["ESI"] = "SI", ["EDI"] = "DI", ["ESP"] = "SP"
+	["AL"] = "AX", ["BL"] = "BX", ["CL"] = "CX", ["DL"] = "DX",
+	["AH"] = "SP", ["BH"] = "DI", ["CH"] = "BP", ["DH"] = "SI" }
+	
+-- Returns mod and r/m for a certain encoding
 function ASM:GetModRM(base,index,dispSz,addrSz)
 	local str = ""
 	
@@ -87,10 +96,19 @@ function ASM:GetModRM(base,index,dispSz,addrSz)
 		str = str .. "D" .. tostring(dispSz)
 	end
 	
+	local modrm
 	if addrSz == 16 then
-		return self.ModRM16[str]
+		modrm = self.ModRM16[str]
 	else
-		return self.ModRM32[str]
+		modrm = self.ModRM32[str]
+	end
+	
+	if not modrm then
+		modrm = self.GetModRM(index,base,dispSz,addrSz)
+	end
+	
+	if modrm ~= nil then
+		return table.unpack(modrm)
 	end
 end
 
@@ -131,6 +149,13 @@ function ASM:EncodeModRM(mod,reg,rm)
 	mod = bit32.band(bit32.lshift(mod,6),0xC0)
 	reg = bit32.band(bit32.lshift(reg,3),0x38)
 	rm = bit32.band(rm,0x07)
+	return bit32.band(bit32.bor(mod,reg,rm),0xFF)
+end
+
+function ASM:EncodeSIB(scale,index,base)
+	scale = bit32.band(bit32.lshift(scale,6),0xC0)
+	index = bit32.band(bit32.lshift(index,3),0x38)
+	base = bit32.band(base,0x07)
 end
 
 -- Possible returns:
@@ -228,7 +253,7 @@ function ASM:ProcessEA(toks, rfield)
 	if ea.Scale == 0 then
 		ea.Ind = nil
 	end
-	
+
 	if not ea.Base and not ea.Ind and not ea.Scale and not ea.Disp then
 		error("Error parsing ea")
 	end
@@ -270,17 +295,36 @@ function ASM:ProcessEA(toks, rfield)
 			end
 		else
 			-- 32/16 bit addressing
-			if ea.DispSz == 32 or ea.Disp > 65535 then
+			if ea.DispSz == 32 then
 				-- If more than 16-bits, encode disp32
 				return 1, self.EncodeModRM(0, rfield, 5), nil, 4, ea.Disp, 32
-			else
-				-- Less than 16-bits, encode disp16
-				return 1, self.EncodeModRM(0, rfield, 6), nil, 2, ea.Disp, 16
+			elseif ea.DispSz == 16 then
+				-- Less than 16-bits, encode default address size
+				if self.BitSize == 64 or self.BitSize == 32 then
+					return 1, self.EncodeModRM(0, rfield, 6), nil, 4, ea.Disp, 32
+				else
+					return 1, self.EncodeModRM(0, rfield, 6), nil, 4, ea.Disp, 16
+				end
 			end
 		end
 	else
+		local addrSz = 16
+		if ea.DispSz == 32 or ea.Disp > 65535 then
+			addrSz = 32
+		end
 		if not ea.Scale then
 			-- We can assume we won't need an SIB byte in normal conditions
+			local mod, rm = self.GetModRM(ea.Base, ea.Index, ea.DispSz, addrSz)
+			return 1, self.EncodeModRM(mod, rfield, rm), nil, 
+		else
+			-- We absolutely need an SIB byte
+			local index = self.REG_LOOKUP[ea.Index]
+			local base = self.REG_LOOKUP[ea.Base]
+			local sib = self.EncodeSIB(ea.Scale, index, base)
+			
+			-- Encode the correct SIB modrm
+			local modrm = self.EncodeModRM("SIB", nil, ea.DispSz)
+			return 2, modrm, sib, ea.DispSz/8, ea.Disp
 		end
 	end
 	
