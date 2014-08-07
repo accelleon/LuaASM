@@ -17,7 +17,7 @@ ASM.ERROR_STR = {
 	[15] = "Unexpected character",
 	[16] = "Unknown token",
 	[17] = "Unclosed parenthesis",
-	[18] = "Unexpected token in expression",
+	[18] = "Unexpected token in expression '%s'",
 	[19] = "Empty effective address",
 	[20] = "Expected ']'",
 	[21] = "Operand mismatch, expected %s got %s",
@@ -55,7 +55,10 @@ end
 function ASM:Error(err, file, line, ...)
 	local fmt = string.format("%sError %i: %s",
 		self:Format(file, line), err, self.ERROR_STR[err])
-	print(string.format(fmt), ...)
+	print(string.format(fmt, ...))
+	-- Generate trace :p
+	local x
+	if x[1] == 5 then end
 	error()
 end
 
