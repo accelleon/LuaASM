@@ -29,10 +29,11 @@ function is_sreg(t)
 end
 
 local tmpexpr = {}
-function addtotemp(Type, Val)
+function addtotemp(Type, Val, Data)
 	local e = {}
 	e.Type = Type
 	e.Val = Val
+	e.Data = Data
 	table.insert(tmpexpr,e)
 end
 
@@ -126,13 +127,13 @@ function addvectors(p,q)
 		end
 		
 		if p[ip].Type > q[iq].Type then
-			addtotemp(q[iq].Type, q[iq].Val)
+			addtotemp(q[iq].Type, q[iq].Val, q[iq].Data)
 			iq = iq + 1
 		elseif p[ip].Type < q[iq].Type then
-			addtotemp(p[ip].Type, p[ip].Val)
+			addtotemp(p[ip].Type, p[ip].Val, p[ip].Data)
 			ip = ip + 1
 		else
-			addtotemp(p[ip].Type, p[ip].Val + q[iq].Val)
+			addtotemp(p[ip].Type, p[ip].Val + q[iq].Val, p[ip].Data)
 			ip = ip + 1
 			iq = iq + 1
 		end
@@ -141,10 +142,10 @@ function addvectors(p,q)
 	for ip=ip, #p do
 		if p[ip].Type >= ASM.EXPR.SEGBASE + SEG_ABS then
 			if preserve then
-				addtotemp(p[ip].Type, p[ip].Val)
+				addtotemp(p[ip].Type, p[ip].Val, p[ip].Data)
 			end
 		else
-			addtotemp(p[ip].Type, p[ip].Val)
+			addtotemp(p[ip].Type, p[ip].Val, p[ip].Data)
 		end
 		--ip = ip + ip
 	end
@@ -152,10 +153,10 @@ function addvectors(p,q)
 	for iq=iq, #q do
 		if q[iq].Type >= ASM.EXPR.SEGBASE + SEG_ABS then
 			if preserve then
-				addtotemp(q[iq].Type, q[iq].Val)
+				addtotemp(q[iq].Type, q[iq].Val, q[iq].Data)
 			end
 		else
-			addtotemp(q[iq].Type, q[iq].Val)
+			addtotemp(q[iq].Type, q[iq].Val, q[iq].Data)
 		end
 		--iq = iq + iq
 	end
@@ -171,10 +172,13 @@ end
 
 function ASM:Eval_Level4()
 
-	if self:MatchToken(self.TOKEN.PLUS) then
-		return self:Eval_Level4()
+	print(self.CurTok)
+	printTable(self:GetToken())
+	--[[if self:MatchToken(self.TOKEN.PLUS) then
+		print("fk")
+		return self:Eval_Level4()]]
 		
-	elseif self:MatchToken(self.TOKEN.MINUS) then
+	if self:MatchToken(self.TOKEN.MINUS) then
 		local e = self:Eval_Level3()
 		if not e then return nil end
 		return scalarmult(e, -1, false)
@@ -210,7 +214,7 @@ function ASM:Eval_Level4()
 			addtotemp(self.EXPR.SIMPLE, self:GetLabel(self.TokenData))
 			
 		elseif self.TokenType == self.TOKEN.REG then
-			addtotemp(self.EXPR[self.TokenData], 1)
+			addtotemp(self.EXPR[self.TokenData], 1, self.TokenData)
 			if not hint.Type then
 				hint.Type = "MAKE"
 				hint.Base = self.EXPR[self.TokenData]
@@ -218,7 +222,8 @@ function ASM:Eval_Level4()
 		end
 		return finishtemp()
 	else
-		self:Error(18, self:GetTokenPos())
+		local file, line = self:GetTokenPos()
+		self:Error(18, file, line, self.TOK_NAME[self:GetToken().Type])
 	end
 end
 
@@ -264,7 +269,6 @@ function ASM:Eval_Level2()
 		if not f then return nil end
 		  
 		if tokType == self.TOKEN.PLUS then
-			print("Hey")
 			e = addvectors(e, f)
 		elseif tokType == self.TOKEN.MINUS then
 			e = addvectors(e, scalarmult(f, -1, false))
