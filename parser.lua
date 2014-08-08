@@ -196,7 +196,7 @@ end
 -- continuously has to reference the OPCODES table
 
 function ASM:ParseInstx(prefix)
-	print("Instruction!")
+	--print("Instruction!")
 	local Name = self.TokenData
 	local instx = {}
 	local file, line = self:GetTokenPos()
@@ -482,11 +482,11 @@ function ASM:ParseInstx(prefix)
 				if tmp[o.Type] then
 					-- Yes move down the chain
 					tmp = tmp[o.Type]
-					print(o.Type .. " Correct")
+					--print(o.Type .. " Correct")
 				else
 					-- No, wrong pathway
 					correct = false
-					print(o.Type .. " Wrong")
+					--print(o.Type .. " Wrong")
 					break
 				end
 			end
@@ -512,7 +512,7 @@ function ASM:ParseInstx(prefix)
 	
 	-- Now we verify our prefixes
 	
-	printTable(instx)
+	--printTable(instx)
 	
 	return instx
 end
@@ -525,7 +525,7 @@ function ASM:Parse()
 	while self:PeekToken() ~= TOKEN.EOF do
 		local code
 		if self:MatchToken(TOKEN.PREFIX) then
-			print(self.TokenData)
+			--print(self.TokenData)
 			local prefix = {self.TokenData}
 			while self:MatchToken(TOKEN.PREFIX) do
 				table.insert(prefix, self.TokenData)
@@ -543,7 +543,7 @@ function ASM:Parse()
 		elseif self:PeekToken() == TOKEN.IDENT then
 			if self:PeekToken(1) == TOKEN.COLON then
 				code = {}
-				code.Type = LABEL
+				code.Type = self.OPTYPE.LABEL
 				self:MatchToken(TOKEN.IDENT)
 				code.Data = self.TokenData
 				self:MatchToken(TOKEN.COLON)
