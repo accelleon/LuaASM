@@ -125,6 +125,9 @@ function printTable(Table, recur)
 			strfmt = strfmt .. tostring(Table)
 			print(strfmt)
 			printTable(j, recur + 1)
+		elseif type(j) == "number" then
+			strfmt = strfmt .. string.format("0x%X",j)
+			print(strfmt)
 		else
 			strfmt = strfmt .. tostring(j)
 			print(strfmt)
