@@ -172,8 +172,6 @@ end
 
 function ASM:Eval_Level4()
 
-	print(self.CurTok)
-	printTable(self:GetToken())
 	--[[if self:MatchToken(self.TOKEN.PLUS) then
 		print("fk")
 		return self:Eval_Level4()]]
