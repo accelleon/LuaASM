@@ -89,7 +89,7 @@ function ASM:GetModRM(base,index,dispSz,addrSz)
 		end
 		str = str .. index:upper()
 	end
-	if dispSz ~= nil then
+	if dispSz ~= nil and dispSz ~= 0 then
 		if base ~= nil or index ~= nil then
 			str = str .. " "
 		end
@@ -104,7 +104,7 @@ function ASM:GetModRM(base,index,dispSz,addrSz)
 	end
 	
 	if not modrm then
-		modrm = self.GetModRM(index,base,dispSz,addrSz)
+		modrm = self:GetModRM(index,base,dispSz,addrSz)
 	end
 	
 	if modrm ~= nil then
@@ -152,11 +152,37 @@ function ASM:EncodeModRM(mod,reg,rm)
 	return bit32.band(bit32.bor(mod,reg,rm),0xFF)
 end
 
-function ASM:EncodeSIB(scale,index,base)
-	print(scale)
+function ASM:EncodeSIB(scale,index,base,mod)
+	-- Adjust parameters to be correct
+	local needDisp
+	if not index then
+		index = self.REG_LOOKUP["SP"]
+	end
+	if not base then
+		if mod ~= 0 then
+			-- Invalid EA
+			error("I Quit!")
+		end
+		base = self.REG_LOOKUP["BP"]
+		needDisp = true
+	end
+	-- We need to fix scale
+	if scale == 1 then
+		scale = 0
+	elseif scale == 2 then
+		scale = 1
+	elseif scale == 4 then
+		scale = 2
+	elseif scale == 8 then
+		scale = 3
+	else
+		error("Wrong scale")
+	end
+
 	scale = bit32.band(bit32.lshift(scale,6),0xC0)
 	index = bit32.band(bit32.lshift(index,3),0x38)
 	base = bit32.band(base,0x07)
+	return bit32.band(bit32.bor(scale,index,base),0xFF), needDisp
 end
 
 -- Possible returns:
@@ -192,11 +218,7 @@ function ASM:EvalEA(toks)
 		ev, hint = self:Eval()
 	end
 	
-	print("Evaluator")
-	printTable(ev)
-	
 	for _,e in pairs(ev) do
-		if e.Data then print("EA Reg Data: " .. e.Data) end
 		-- Is it a register?
 		if e.Type == 0 then
 			break
@@ -249,13 +271,17 @@ function ASM:ProcessEA(toks, rfield)
 		-- It's a single token, assume 
 		pos = toks.Pos
 		reg = toks.Data
-		print(reg)
 	else
 		-- Hmm shouldn't be here
 		error()
 	end
 	
-	printTable(ea)
+	if not tonumber(rfield) then
+		rfield = self.REG_LOOKUP[rfield]
+		if not rfield then
+			error("Wut")
+		end
+	end
 	
 	if ea.Scale == 0 then
 		ea.Index = nil
@@ -282,7 +308,7 @@ function ASM:ProcessEA(toks, rfield)
 			addrSz = 64
 		end
 		
-		return 1, self.EncodeModRM(3, rfield, self.REG_LOOKUP[reg]), nil, nil, nil, addrSz
+		return 1, self:EncodeModRM(3, rfield, self.REG_LOOKUP[reg]), nil, nil, nil, addrSz
 	end
 	
 	if not ea.Base and not ea.Ind and not ea.Scale then
@@ -300,22 +326,22 @@ function ASM:ProcessEA(toks, rfield)
 			if self.AddrType == "off" then
 				-- Offset addressing, 32-bit displacement isn't available in
 				-- modr/m alone in long mode, encode ModRM: SIB and SIB: disp32
-				return 2, self.EncodeModRM(0, rfield, 4), self.EncodeModRM(0, 4, 5), 4, disp, 64
+				return 2, self:EncodeModRM(0, rfield, 4), self:EncodeModRM(0, 4, 5), 4, disp, 64
 			else
 				-- Relative addressing, encode EIP/RIP + disp
-				return 1, self.EncodeModRM(0, rfield, 5), nil, 4, ea.Disp, 64
+				return 1, self:EncodeModRM(0, rfield, 5), nil, 4, ea.Disp, 64
 			end
 		else
 			-- 32/16 bit addressing
 			if ea.DispSz == 32 then
 				-- If more than 16-bits, encode disp32
-				return 1, self.EncodeModRM(0, rfield, 5), nil, 4, ea.Disp, 32
+				return 1, self:EncodeModRM(0, rfield, 5), nil, 4, ea.Disp, 32
 			elseif ea.DispSz == 16 then
 				-- Less than 16-bits, encode default address size
 				if self.BitSize == 64 or self.BitSize == 32 then
-					return 1, self.EncodeModRM(0, rfield, 6), nil, 4, ea.Disp, 32
+					return 1, self:EncodeModRM(0, rfield, 6), nil, 4, ea.Disp, 32
 				else
-					return 1, self.EncodeModRM(0, rfield, 6), nil, 4, ea.Disp, 16
+					return 1, self:EncodeModRM(0, rfield, 6), nil, 4, ea.Disp, 16
 				end
 			end
 		end
@@ -324,19 +350,42 @@ function ASM:ProcessEA(toks, rfield)
 		if ea.DispSz == 32 or ea.Disp > 65535 then
 			addrSz = 32
 		end
+		
+		-- Size optimizations:
+		-- [eax*2] and no disp -> eax*1 + eax
+		if ea.Scale == 2 and not ea.Base and ea.DispSz == 0 then
+			ea.Scale = 1
+			ea.Base = ea.Ind
+		end
+		
 		if not ea.Scale then
 			-- We can assume we won't need an SIB byte in normal conditions
-			local mod, rm = self.GetModRM(ea.Base, ea.Index, ea.DispSz, addrSz)
-			return 1, self.EncodeModRM(mod, rfield, rm), ea.DispSz, ea.Disp
-		else
-			-- We absolutely need an SIB byte
-			local index = self.REG_LOOKUP[ea.Index]
-			local base = self.REG_LOOKUP[ea.Base]
-			print(ea.Scale)
-			local sib = self.EncodeSIB(ea.Scale, index, base)
-			
+			local mod, rm = self:GetModRM(ea.Base, ea.Ind, ea.DispSz, addrSz)
+			return 1, self:EncodeModRM(mod, rfield, rm), ea.DispSz, ea.Disp
+		else			
 			-- Encode the correct SIB modrm
-			local modrm = self.EncodeModRM("SIB", nil, ea.DispSz)
+			-- Special optimization for no base
+			-- SIB with no base requires a 32-bit displacement
+			local mod, rm
+			if ea.Base then
+				mod, rm = self:GetModRM("SIB", nil, ea.DispSz, 32)
+			else
+				mod, rm = self:GetModRM("SIB", nil, nil, 32)
+			end
+			local modrm = self:EncodeModRM(mod, rfield, rm)
+		
+			-- We absolutely need an SIB byte
+			local index = self.REG_LOOKUP[ea.Ind]
+			local base = self.REG_LOOKUP[ea.Base]
+			local sib, needDisp = self:EncodeSIB(ea.Scale, index, base, mod)
+			
+			if needDisp then
+				if not ea.Disp then
+					ea.Disp = 0
+				end
+				ea.DispSz = 32
+			end
+			
 			return 2, modrm, sib, ea.DispSz/8, ea.Disp
 		end
 	end
@@ -448,22 +497,29 @@ function ASM:EncodeInstx(code)
 		end
 	end
 	
+	local emitWord
+	local emitDword
+	
 	-- These functions assume little endian!
 	local function emitByte(b, sz)
+		if not b then return end
 		if sz == 2 then
 			emitWord(b)
+			return
 		elseif sz == 4 then
 			emitDword(b)
+			return
 		end
+		print(b)
 		table.insert(Bytecode,bit32.band(b,0xFF))
 	end
 	
-	local function emitWord(w)
+	emitWord = function(w)
 		emitByte(bit32.band(w,0xFF))
 		emitByte(bit32.band(bit32.rshift(w,8),0xFF))
 	end
 	
-	local function emitDword(dw)
+	emitDword = function(dw)
 		emitWord(bit32.band(dw,0xFFFF))
 		emitWord(bit32.band(bit32.rshift(dw,16),0xFFFF))
 	end
@@ -482,7 +538,6 @@ function ASM:EncodeInstx(code)
 			self:Error(7, code.Pos.File, code.Pos.Line, 3)
 		end
 	end
-	
 	for _,o in pairs(Encoding) do
 		print(o)
 		if o == "o16" then
@@ -508,7 +563,7 @@ function ASM:EncodeInstx(code)
 			end
 			emitByte(modrm)
 			if sib then emitByte(sib) end
-			if disp then emitByte(disp,dSize) end
+			if dSize > 0 then emitByte(disp,dSize) end
 		elseif _rmtab[o] then
 			-- ModR/M byte in which only mod and r/m fields are used
 			-- and the reg field indicates an extension to the opcode
