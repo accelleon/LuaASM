@@ -31,16 +31,30 @@ local opflags = ASM.OPFLAGS
 -- THIS is a big list
 -- flags is the only optional entry
 ASM.OPCODES_RAW = {
---[[
-	{"MOV", 2, {"rm8","r8"}, "88 /r"},
-	{"MOV", 2, {"rm16","r16"}, "89 /r", opflags.o16},
-	{"MOV", 2, {"rm32","r32"}, "89 /r", opflags.o32},
-	{"MOV", 2, {"r8","rm8"}, "8A /r"},
-	{"MOV", 2, {"r16","rm16"}, "8B /r", opflags.o16},
-	{"MOV", 2, {"r32","rm32"}, "8B /r", opflags.o32},
-	{"MOV", 2, {"r8","imm8"}, "B0 rb"},
-	{"MOV", 2, {"r16","imm16"}, "B8 rw", opflags.o16},
-]]--
+	--AAA
+	--AAD
+	--AAM
+	--AAS
+	{"ADC", 2, {"AL","imm8"},	"-i", "14 ib"},
+	{"ADC", 2, {"AX","imm16"},	"-i", "o16 15 iw"},
+	{"ADC", 2, {"EAX","imm32"}, "-i", "o32 15 id"},
+	{"ADC", 2, {"RAX","imm64"}, "-i", "rxW 15 id"},
+	{"ADC", 2, {"rm8","imm8"},	"mi", "80 /2 ib"},
+	{"ADC", 2, {"rm16","imm16"},"mi", "o16 81 /2 iw"},
+	{"ADC", 2, {"rm32","imm32"},"mi", "o32 81 /2 id"},
+	{"ADC", 2, {"rm64","imm32"},"mi", "rxW 81 /2 id"},
+	{"ADC", 2, {"rm16","imm8"}, "mi", "o16 83 /2 ib"},
+	{"ADC", 2, {"rm32","imm8"}, "mi", "o32 83 /2 ib"},
+	{"ADC", 2, {"rm64","imm8"}, "mi", "rxW 83 /2 ib"},
+	{"ADC", 2, {"rm8","r8"},	"mr", "10 /r"},
+	{"ADC", 2, {"rm16","r16"},	"mr", "o16 11 /r"},
+	{"ADC", 2, {"rm32","r32"},	"mr", "o32 11 /r"},
+	{"ADC", 2, {"rm64","r64"},	"mr", "rxW 11 /r"},
+	{"ADC", 2, {"r8","rm8"},	"rm", "12 /r"},
+	{"ADC", 2, {"r16","rm16"},	"rm", "o16 12 /r"},
+	{"ADC", 2, {"r32","rm32"},	"rm", "o32 12 /r"},
+	{"ADC", 2, {"r64","rm64"},	"rm", "rxW 12 /r"},
+
 	{"MOV", 2, {"r8","r8"}, 	"mr", "88 /r"},
 	{"MOV", 2, {"m8","r8"}, 	"mr", "88 /r"},
 	{"MOV", 2, {"r16","r16"}, 	"mr", "o16 89 /r"},
