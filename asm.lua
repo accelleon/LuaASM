@@ -1,12 +1,15 @@
 
 ASM = {}
 
+-- My own include function since lua doesnt have one
 function include(fname)
+	-- load the file into a function
 	proc, err = loadfile("LuaASM/"..fname)
 	if proc == nil then
 		print(err)
 		error()
 	end
+	-- run the function (i.e. same as doFile())
 	proc()
 end
 
@@ -21,7 +24,7 @@ include("parser.lua")
 include("encoder.lua")
 include("error.lua")
 
-
+-- This creates a bunch of variables used later
 function ASM:Init()
 	ASM.FileList = {}
 	ASM.BitSize = 16
@@ -37,8 +40,10 @@ function ASM:Init()
 	ASM.Labels = {}
 end
 
+-- Parse the command line options
 function ASM:ParseCmdLine(cmdarg)
 	local state = ""
+	-- Loop through all arguments
 	for _,v in pairs(cmdarg) do
 		if (state ~= "") and (v[0] == '-') then
 			-- A state is set but we encountered a switch
@@ -64,6 +69,7 @@ function ASM:ParseCmdLine(cmdarg)
 	end
 end
 
+-- Actual compile function
 function ASM:doCompile()
 	print("Tokenizing...")
 	self:tokenize() -- Tokenize source file
@@ -76,16 +82,20 @@ function ASM:doCompile()
 	print("Parsing...")
 	self:Parse() -- Parse code
 	print("Done.")
-	self:Encode()
+	self:Encode() -- Encode
 end
 
+-- Main function
 function ASM:Compile(cmdarg)
 	print("Compile")
-	self:Init()
-	self:ParseCmdLine(cmdarg)
+	self:Init() -- Set up vars
+	self:ParseCmdLine(cmdarg) -- Parse our command line
 	
+	-- Compile each file
 	for _,v in pairs(self.SourceFiles) do
+		-- Open file
 		local f = assert(io.open(v, "r"))
+		-- Set up the file's structures
 		self.Source[1] = {}
 		self.Source[1].Src = f:read("*all")
 		self.Source[1].Src = string.gsub(self.Source[1].Src, "\r\n","\n")
@@ -94,10 +104,12 @@ function ASM:Compile(cmdarg)
 		self.Source[1].Fname = v
 		f:close()
 		
+		-- Compile file
 		self:doCompile()
 	end
 end
 
+-- Debugging function
 function bugCheck(obj)
 	local tbl = getmetatable(obj)
 	if tbl == nil then
@@ -113,6 +125,7 @@ function bugCheck(obj)
 	end
 end
 
+-- Debugging function
 function printTable(Table, recur)
 	local recur = recur or 0
 	local tab = ""
@@ -135,6 +148,7 @@ function printTable(Table, recur)
 	end
 end
 
+-- Obsolete debugging function
 function writeTable(file, Table, recur)
 	local recur = recur or 0
 	local tab = ""
@@ -154,12 +168,14 @@ function writeTable(file, Table, recur)
 	end
 end
 
+-- Obsolete debugging function
 function ASM:convToken()
 	for i,j in pairs(self.Tokens) do
 		j.Type = self.TOK_NAME[j.Type]
 	end
 end
 
+-- Get our command line arguments
 args = {...}
 
 -- = binio.open("Test.bin", "wb")
@@ -168,14 +184,12 @@ args = {...}
 --f:writeByte(str:byte(1, -1))
 --f:close()
 
+-- Print them for debugging
 for i,j in pairs(args) do
 	print(j)
 end
 
-f = io.open("token.lst", "w")
-writeTable(f, ASM.OPCODES)
-f:close()
-
+-- And now we compile
 ASM:Compile(args)
 
 --printTable(ASM.OPCODES)
