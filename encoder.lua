@@ -142,6 +142,7 @@ function ASM:GetLabel(ident)
 end
 
 function ASM:SetLabel(ident, val)
+	print("Label " .. ident .. " equals: " .. val)
 	self.Labels[ident] = val
 end
 
@@ -510,7 +511,6 @@ function ASM:EncodeInstx(code)
 			emitDword(b)
 			return
 		end
-		print(b)
 		table.insert(Bytecode,bit32.band(b,0xFF))
 	end
 	
@@ -539,7 +539,6 @@ function ASM:EncodeInstx(code)
 		end
 	end
 	for _,o in pairs(Encoding) do
-		print(o)
 		if o == "o16" then
 			if self.BitSize ~= 16 then
 				-- Emit operand size prefix
@@ -607,13 +606,36 @@ function ASM:EncodeInstx(code)
 	end
 	
 	printTable(Bytecode)
+	return #Bytecode, Bytecode
 end
 
 function ASM:Encode()
-	-- Phase 1
+	-- Phase 1 calculate offset and set labels
+	local offset = 0
 	for _,o in pairs(self.CodeList) do
 		if o.Type == self.OPTYPE.INSTX then
-			self:EncodeInstx(o)
+			offset = offset + self:EncodeInstx(o)
+			--offset = offset + self:SizeInstx(o)
+		elseif o.Type == self.OPTYPE.DEFINE then
+			-- db, dw, dd, dq
+		elseif o.Type == self.OPTYPE.LABEL then
+			-- Set label to offset
+			self:SetLabel(o.Data,offset)
 		end
 	end
+	
+	-- Phase 2 actually encode
+	local output = {}
+	for _,o in pairs(self.CodeList) do
+		if o.Type == self.OPTYPE.INSTX then
+			local _, bytecode = self:EncodeInstx(o)
+			for _,v in pairs(bytecode) do
+				table.insert(output,v)
+			end
+		end
+	end
+	
+	-- output bytecode
+	print("Output:")
+	printTable(output)
 end
