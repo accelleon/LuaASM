@@ -25,3 +25,8 @@ Copyright
 =========
 
 This software is a work of Anthony Wilkins and is under the GPL v3 license.
+
+Note
+====
+
+Help adding the x86 intel instruction set is appreciated.
