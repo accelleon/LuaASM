@@ -394,7 +394,7 @@ ASM.OPCODES_RAW = {
 	{"JNA", 1, {"moffs8"}, "d", "76 cb"},
 	{"JNAE", 1, {"moffs8"}, "d", "72 cb"},
 	{"JNB", 1, {"moffs8"}, "d", "73 cb"},
-	{"JNBE", 1 {"moffs8"}, "d", "77 cb"},
+	{"JNBE", 1, {"moffs8"}, "d", "77 cb"},
 	{"JNC", 1, {"moffs8"}, "d", "73 cb"},
 	{"JNE", 1, {"moffs8"}, "d", "75 cb"},
 	{"JNG", 1, {"moffs8"}, "d", "7E cb"},
@@ -1093,7 +1093,7 @@ for _, opcode in pairs(ASM.OPCODES_RAW) do
 		opname = opcode[2]
 		op2name = opcode[3]
 		
-		ASM.OPCODE[opname] = ASM.OPCODE[op2name]
+		ASM.OPCODES[opname] = ASM.OPCODES[op2name]
 	else
 		nOperands = opcode[2]
 		operands = opcode[3]
@@ -1119,3 +1119,4 @@ for _, opcode in pairs(ASM.OPCODES_RAW) do
 			ASM.OPCODES[name][nOperands] = {bytecode, flags}
 		end
 	end
+end
