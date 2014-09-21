@@ -24,9 +24,9 @@ Command Line
 lua.exe LuaASM/asm.lua [ -I <includeDir> ] [-f <format>] [-o <fname>] <Source files...>
 
 Switches:
- -I \<includeDir\> : Adds a *single* directory to the include search path
- -f \<format\> : Sets the output format
- -o \<fname\> : Set the output filename
+ +-I \<includeDir\> : Adds a *single* directory to the include search path
+ +-f \<format\> : Sets the output format
+ +-o \<fname\> : Set the output filename
  
 Output Formats:
  - bin - Flat binary
