@@ -212,6 +212,32 @@ function ASM:doToken()
 			Data = tonumber(token),
 			Pos = tokPos })
 		return true
+	else
+		-- check to see if a suffix is stopping us
+		-- separate suffix and number
+		local number = string.sub(token,1,-2)
+		local suffix = string.sub(token,-1,-1)
+		print(number, suffix)
+		-- yes determine suffix and convert
+		local data = nil
+		if suffix == "h" then
+			data = tonumber(number,16)
+		elseif suffix == "o" then
+			data = tonumber(number,8)
+		elseif suffix == "b" then
+			data = tonumber(number,2)
+		else
+			error("Invalid suffix")
+			return false
+		end
+		if not data then
+			error("Invalid number")
+		end
+		table.insert(self.Tokens, {
+		Type = TOKEN.NUMBER,
+		Data = data,
+		Pos = tokPos })
+		return true
 	end
 	
 	-- identifier
