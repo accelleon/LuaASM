@@ -349,14 +349,16 @@ function ASM:ParseInstx(prefix)
 	-- Size isn't specified
 	-- Default to current bit size
 	if not sizeGuess then
-		sizeGuess = size
+		--sizeGuess = size
 	end
 	
 	-- Add size to types that
 	-- don't have one yet
 	for i,o in pairs(opType) do
 		if (o.Type == "imm") or (o.Type == "m") then
-			o.Type = o.Type .. tostring(sizeGuess)
+			if sizeGuess then
+				o.Type = o.Type .. tostring(sizeGuess)
+			end
 		end
 	end
 	
@@ -413,9 +415,50 @@ function ASM:ParseInstx(prefix)
 			table.insert(possOp, tReg)
 			table.insert(possOp, o)
 		else
-			-- Immediate type
-			-- Just add it to possible operands
-			table.insert(possOp, o)
+			if o.Type == "imm" then
+				printTable(o)
+				if type(o.Data) == "number" then
+					if o.Data < 256 then
+						local tImm = {}
+						tImm.Data = o.Data
+						tImm.Type = "imm8"
+						table.insert(possOp, tImm)
+					end
+					if o.Data < 65536 then
+						local tImm = {}
+						tImm.Data = o.Data
+						tImm.Type = "imm16"
+						table.insert(possOp, tImm)
+					end
+					if o.Data < 4294967296 then
+						local tImm = {}
+						tImm.Data = o.Data
+						tImm.Type = "imm32"
+						table.insert(possOp, tImm)
+					else
+						error("64-bit values not supported currently")
+					end
+				else
+					local tImm = {}
+					tImm.Data = o.Data
+					tImm.Type = "imm8"
+					table.insert(possOp, tImm)
+				
+					local tImm2 = {}
+					tImm2.Data = o.Data
+					tImm2.Type = "imm16"
+					table.insert(possOp, tImm2)
+				
+					local tImm3 = {}
+					tImm3.Data = o.Data
+					tImm3.Type = "imm32"
+					table.insert(possOp, tImm3)
+				end
+			else
+				-- Immediate type
+				-- Just add it to possible operands
+				table.insert(possOp, o)
+			end
 		end
 		table.insert(possOps, possOp)
 	end
@@ -461,7 +504,7 @@ function ASM:ParseInstx(prefix)
 		return false
 	end
 	
-	
+	printTable(possOps)
 	-- Now we try every possible pathway
 	local tried = {}
 	local res
@@ -511,8 +554,6 @@ function ASM:ParseInstx(prefix)
 	instx.nOperands = nOps
 	
 	-- Now we verify our prefixes
-	
-	--printTable(instx)
 	
 	return instx
 end
