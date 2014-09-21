@@ -29,7 +29,7 @@ Switches:
  -o <fname> : Set the output filename
  
 Output Formats:
- bin - Flat binary
+ - bin - Flat binary
 
 Copyright
 =========
