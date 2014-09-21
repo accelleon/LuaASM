@@ -38,6 +38,8 @@ function ASM:Init()
 	ASM.Macros = {}
 	ASM.CodeList = {}
 	ASM.Labels = {}
+	ASM.OutFmt = "bin"
+	ASM.OutFname = "out.bin"
 end
 
 -- Parse the command line options
@@ -59,11 +61,19 @@ function ASM:ParseCmdLine(cmdarg)
 				table.insert(self.IncludeSearchPath, v)
 				local str = string.format("Added \"%s\" as include path", v)
 				print(str)
+			elseif state == "f" then
+				ASM.OutFmt = v
+			elseif state == "o" then
+				ASM.OutFname = v
 			end
 			state = ""
 		else -- state ~= "" and v[0] == '-'
 			if v == "-I" then
 				state = "I"
+			elseif v == "-f" then
+				state = "f"
+			elseif v == "-o" then
+				state = "o"
 			end
 		end
 	end
@@ -74,11 +84,11 @@ function ASM:doCompile()
 	print("Tokenizing...")
 	self:tokenize() -- Tokenize source file
 	print("Done. Result:")
-	printTable(self.Tokens)
+	--printTable(self.Tokens)
 	print("Expanding macros...")
 	self:Expand() -- Expand macros
 	print("Done. Result:")
-	printTable(self.Tokens)
+	--printTable(self.Tokens)
 	print("Parsing...")
 	self:Parse() -- Parse code
 	print("Done.")
@@ -90,6 +100,9 @@ function ASM:Compile(cmdarg)
 	print("Compile")
 	self:Init() -- Set up vars
 	self:ParseCmdLine(cmdarg) -- Parse our command line
+	
+	-- Bring in output format
+	include("Output/" .. ASM.OutFmt .. ".lua")
 	
 	-- Compile each file
 	for _,v in pairs(self.SourceFiles) do
@@ -133,16 +146,21 @@ function printTable(Table, recur)
 		tab = tab .. "\t"
 	end
 	for i,j in pairs(Table) do
-		strfmt = tab .. tostring(i) .. " : "
-		if type(j) == "table" then
+		local data = j
+		if i ~= "Type" then
+			strfmt = tab .. tostring(i) .. " : "
+		else
+			data = ASM.TOK_NAME[j]
+		end
+		if type(data) == "table" then
 			strfmt = strfmt .. tostring(Table)
 			print(strfmt)
-			printTable(j, recur + 1)
-		elseif type(j) == "number" then
-			strfmt = strfmt .. string.format("0x%X",j)
+			printTable(data, recur + 1)
+		elseif type(data) == "number" then
+			strfmt = strfmt .. string.format("0x%X",data)
 			print(strfmt)
 		else
-			strfmt = strfmt .. tostring(j)
+			strfmt = strfmt .. tostring(data)
 			print(strfmt)
 		end
 	end

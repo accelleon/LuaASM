@@ -638,4 +638,8 @@ function ASM:Encode()
 	-- output bytecode
 	print("Output:")
 	printTable(output)
+	
+	local outfile = self.Output.Open(self.OutFname)
+	self.Output.Write(outfile,output)
+	self.Output.Close(outfile)
 end
