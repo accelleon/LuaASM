@@ -20,8 +20,7 @@ Please do suggest features and report bugs!
 Command Line
 ============
 
-(This will change when the C host is introduced)
-
+(This will change when the C host is introduced)  
 lua.exe LuaASM/asm.lua [ -I \<includeDir\> ] [-f \<format\>] [-o \<fname\>] \<Source files...\>
 
 Switches:
